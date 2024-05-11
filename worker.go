@@ -23,7 +23,7 @@ type Healther interface {
 }
 
 // Gatherer is a place for workers to return a prometheus.Gatherer
-// for SVC to serve on the metrics endpoint
+// for SVC to serve on the metrics endpoint.
 type Gatherer interface {
 	Gatherer() prometheus.Gatherer
 }

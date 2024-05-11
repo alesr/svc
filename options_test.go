@@ -2,6 +2,7 @@ package svc
 
 import (
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -10,8 +11,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// nolint: dupl
+//nolint:dupl
 func TestAlive(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
 		name         string
@@ -58,7 +60,7 @@ func TestAlive(t *testing.T) {
 
 			go s.Run()
 
-			req := httptest.NewRequest("GET", "/ready", nil)
+			req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 			rec := httptest.NewRecorder()
 			s.Router.ServeHTTP(rec, req)
 			assert.Equal(t, tc.expectedCode, rec.Code)
@@ -66,8 +68,9 @@ func TestAlive(t *testing.T) {
 	}
 }
 
-// nolint: dupl
+//nolint:dupl
 func TestHealthy(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
 		name         string
@@ -114,7 +117,7 @@ func TestHealthy(t *testing.T) {
 
 			go s.Run()
 
-			req := httptest.NewRequest("GET", "/live", nil)
+			req := httptest.NewRequest(http.MethodGet, "/live", nil)
 			rec := httptest.NewRecorder()
 			s.Router.ServeHTTP(rec, req)
 			assert.Equal(t, tc.expectedCode, rec.Code)

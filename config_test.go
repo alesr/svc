@@ -1,7 +1,6 @@
 package svc
 
 import (
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -21,10 +20,8 @@ func TestLoadFromEnv(t *testing.T) {
 		EmptyRequiredVal string `env:"emptyVal" validate:"required"`
 	}{}
 
-	err = os.Setenv("strVal", "testStrVal")
-	require.NoError(t, err)
-	err = os.Setenv("intVal", "123")
-	require.NoError(t, err)
+	t.Setenv("strVal", "testStrVal")
+	t.Setenv("intVal", "123")
 
 	err = LoadFromEnv(&test)
 	require.Error(t, err)
@@ -37,10 +34,10 @@ func TestLoadFromEnvWithParsers(t *testing.T) {
 	test := struct {
 		MapVal map[string]string `env:"mapVal" envDefault:""`
 	}{}
-	err := os.Setenv("mapVal", "testKey:testVal")
-	require.NoError(t, err)
 
-	err = LoadFromEnvWithParsers(&test, map[reflect.Type]env.ParserFunc{
+	t.Setenv("mapVal", "testKey:testVal")
+
+	err := LoadFromEnvWithParsers(&test, map[reflect.Type]env.ParserFunc{
 		reflect.TypeOf(map[string]string{}): func(v string) (interface{}, error) {
 			items := strings.Split(v, ":")
 			return map[string]string{items[0]: items[1]}, nil

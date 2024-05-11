@@ -33,7 +33,7 @@ func WithZapMetrics() Option {
 	return func(s *SVC) error {
 		requestCount := prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "logger_emitted_entries",
+				Name: "logger_emitted_entries_total",
 				Help: "Number of log messages emitted.",
 			},
 			[]string{"level", "logger_name"},
