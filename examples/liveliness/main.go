@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/voi-oss/svc"
+	"github.com/alesr/svc"
 	"go.uber.org/zap"
 )
 
