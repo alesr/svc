@@ -1,41 +1,65 @@
+run:
+  concurrency: 8
+  timeout: 3m
+  issues-exit-code: 1
+  tests: true
+  modules-download-mode: readonly
+  allow-parallel-runners: false
+  go: ""
+
+output:
+  print-issued-lines: false
+  print-linter-name: true
+  uniq-by-line: false
+  path-prefix: ""
+  sort-results: true
+
 linters:
+  fast: false
+
   enable:
-    # default
-    - deadcode
-    - errcheck
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - contextcheck
+    - durationcheck
+    - errcheck 
+    - errname
+    - errorlint
+    - exportloopref
     - golint
-    - gosimple
+    - gocritic
+    - godot
+    - gofmt
+    - gofumpt
+    - goimports
+    - gomoddirectives
+    - gosec
     - govet
     - ineffassign
-    - staticcheck
-    - structcheck
-    - typecheck
-    - unused
-    - varcheck
-    # added
-    - depguard
-    - dupl
-    - gochecknoinits
-    - goconst
-    - gocritic
-    - gocyclo
-    - gofmt
-    - goimports
-    - gosec
-    - interfacer
-    - maligned
     - misspell
     - nakedret
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
     - prealloc
-    - scopelint
+    - predeclared
+    - promlinter
+    - reassign
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
     - stylecheck
+    - tagliatelle
+    - tenv
+    - testableexamples
+    - thelper
+    - tparallel
     - unconvert
     - unparam
-  disable:
-    - gochecknoglobals # too perversive
-    - lll # hard to fulfill
-
-run:
-  modules-download-mode: vendor
-  skip-dirs:
-    - vendor
+    - unused
+    - usestdlibvars
+    - wastedassign

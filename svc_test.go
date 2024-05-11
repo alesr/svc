@@ -13,6 +13,8 @@ import (
 )
 
 func TestWorkerInitOrder(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 
 	s, err := New("dummy-name", "dummy-version")
@@ -64,6 +66,8 @@ func TestWorkerInitOrder(t *testing.T) {
 }
 
 func TestShutdown(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 
 	termWorkerCh := make(chan struct{})
@@ -91,6 +95,8 @@ func TestShutdown(t *testing.T) {
 }
 
 func TestContextCanceled(t *testing.T) {
+	t.Parallel()
+
 	dummyWorker := &WorkerMock{
 		InitFunc: func(*zap.Logger) error { return nil },
 		RunFunc: func() error {
@@ -123,6 +129,7 @@ func (w *WorkerMock) Init(l *zap.Logger) error {
 	}
 	return w.InitFunc(l)
 }
+
 func (w *WorkerMock) Run() error {
 	if w.RunFunc == nil {
 		panic("WorkerMock: Run was called but RunFunc was not mocked!")
@@ -189,9 +196,10 @@ func TestSVC_AddWorkerWithInitRetry(t *testing.T) {
 			expectedAttempts: 3,
 		},
 	}
+
 	for _, tt := range tests {
 		attempts = 0
-		tt := tt // not needed because we don't run tests in parallel, but scopelint complains otherwise.
+
 		t.Run(tt.name, func(t *testing.T) {
 			s, err := New("dummy-name", "dummy-version")
 			require.NoError(t, err)

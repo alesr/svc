@@ -124,12 +124,12 @@ func WithPProfHandlers() Option {
 func WithHealthz() Option {
 	return func(s *SVC) error {
 		// Register live probe handler
-		s.Router.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {
+		s.Router.HandleFunc("/live", func(w http.ResponseWriter, _ *http.Request) {
 			var errs []error
 			for n, w := range s.workers {
 				if hw, ok := w.(Aliver); ok {
 					if err := hw.Alive(); err != nil {
-						errs = append(errs, fmt.Errorf("worker %s: %s", n, err))
+						errs = append(errs, fmt.Errorf("worker %s: %w", n, err))
 					}
 				}
 			}
@@ -151,12 +151,12 @@ func WithHealthz() Option {
 		})
 
 		// Register ready probe handler
-		s.Router.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+		s.Router.HandleFunc("/ready", func(w http.ResponseWriter, _ *http.Request) {
 			var errs []error
 			for n, w := range s.workers {
 				if hw, ok := w.(Healther); ok {
 					if err := hw.Healthy(); err != nil {
-						errs = append(errs, fmt.Errorf("worker %s: %s", n, err))
+						errs = append(errs, fmt.Errorf("worker %s: %w", n, err))
 					}
 				}
 			}
