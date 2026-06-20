@@ -38,7 +38,7 @@ func TestLoadFromEnvWithParsers(t *testing.T) {
 	t.Setenv("mapVal", "testKey:testVal")
 
 	err := LoadFromEnvWithParsers(&test, map[reflect.Type]env.ParserFunc{
-		reflect.TypeOf(map[string]string{}): func(v string) (interface{}, error) {
+		reflect.TypeFor[map[string]string](): func(v string) (any, error) {
 			items := strings.Split(v, ":")
 			return map[string]string{items[0]: items[1]}, nil
 		},
