@@ -1,6 +1,6 @@
 module github.com/alesr/svc
 
-go 1.22.3
+go 1.26
 
 require (
 	github.com/avast/retry-go/v4 v4.6.0
