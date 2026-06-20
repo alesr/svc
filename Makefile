@@ -29,7 +29,7 @@ lint: ## Run staticcheck linter against all source files.
 
 .PHONY: vulncheck
 vulncheck: ## Scan for known vulnerabilities in dependencies.
-	go run golang.org/x/vuln/cmd/govulncheck ./...
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 ##@ Test
 
