@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"sync"
 	"syscall"
 	"time"
@@ -15,7 +17,6 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.uber.org/zap"
 )
 
 const (
@@ -35,11 +36,10 @@ type SVC struct {
 	TerminationWaitPeriod  time.Duration
 	signals                chan os.Signal
 
-	logger             *zap.Logger
-	zapOpts            []zap.Option
-	stdLogger          *log.Logger
-	atom               zap.AtomicLevel
-	loggerRedirectUndo func()
+	logger         *slog.Logger
+	levelVar       *slog.LevelVar
+	stdLogger      *log.Logger
+	metricsCounter *prometheus.CounterVec
 
 	workers             map[string]Worker
 	workerInitRetryOpts map[string][]retry.Option
@@ -91,18 +91,19 @@ func New(name, version string, opts ...Option) (*SVC, error) {
 // maintained.
 func (s *SVC) AddWorker(name string, w Worker) {
 	if _, exists := s.workers[name]; exists {
-		s.logger.Fatal("Duplicate worker names!", zap.String("name", name), zap.Stack("stacktrace"))
+		s.logger.Error("Duplicate worker names", slog.String("name", name), slog.String("stacktrace", string(debug.Stack())))
+		os.Exit(1)
 	}
 	if _, ok := w.(Healther); !ok {
-		s.logger.Info("Worker does not implement Healther interface", zap.String("worker", name))
+		s.logger.Info("Worker does not implement Healther interface", slog.String("worker", name))
 	}
 	if _, ok := w.(Aliver); !ok {
-		s.logger.Info("Worker does not implement Aliver interface", zap.String("worker", name))
+		s.logger.Info("Worker does not implement Aliver interface", slog.String("worker", name))
 	}
 	if g, ok := w.(Gatherer); ok {
 		s.AddGatherer(g.Gatherer())
 	} else {
-		s.logger.Info("Worker does not implement Gatherer interface", zap.String("worker", name))
+		s.logger.Info("Worker does not implement Gatherer interface", slog.String("worker", name))
 	}
 	// Track workers as ordered set to initialize them in order.
 	s.workersAdded = append(s.workersAdded, name)
@@ -127,26 +128,24 @@ func (s *SVC) Run() {
 	s.logger.Info("Starting up service")
 
 	defer func() {
-		s.logger.Info("Shutting down service", zap.Duration("termination_grace_period", s.TerminationGracePeriod))
+		s.logger.Info("Shutting down service", slog.Duration("termination_grace_period", s.TerminationGracePeriod))
 		s.terminateWorkers()
 		s.logger.Info("Service shutdown completed")
-		_ = s.logger.Sync()
-		s.loggerRedirectUndo()
 	}()
 
 	// Initializing workers in added order.
 	for _, name := range s.workersAdded {
-		s.logger.Debug("Initializing worker", zap.String("worker", name))
+		s.logger.Debug("Initializing worker", slog.String("worker", name))
 		w := s.workers[name]
 		var err error
 		if opts, ok := s.workerInitRetryOpts[name]; ok {
 			//nolint:scopelint
-			err = retry.Do(func() error { return w.Init(s.logger.Named(name)) }, opts...)
+			err = retry.Do(func() error { return w.Init(s.logger) }, opts...)
 		} else {
-			err = w.Init(s.logger.Named(name))
+			err = w.Init(s.logger)
 		}
 		if err != nil {
-			s.logger.Error("Could not initialize service", zap.String("worker", name), zap.Error(err))
+			s.logger.Error("Could not initialize service", slog.String("worker", name), slog.Any("error", err))
 			return
 		}
 		s.workersInitialized = append(s.workersInitialized, name)
@@ -170,11 +169,12 @@ func (s *SVC) Run() {
 	select {
 	case err := <-errs:
 		if !errors.Is(err, context.Canceled) {
-			s.logger.Fatal("Worker Init/Run failure", zap.Error(err))
+			s.logger.Error("Worker Init/Run failure", slog.Any("error", err))
+			os.Exit(1)
 		}
-		s.logger.Warn("Worker context canceled", zap.Error(err))
+		s.logger.Warn("Worker context canceled", slog.Any("error", err))
 	case sig := <-s.signals:
-		s.logger.Warn("Caught signal", zap.String("signal", sig.String()))
+		s.logger.Warn("Caught signal", slog.String("signal", sig.String()))
 	case <-waitGroupToChan(&wg):
 		s.logger.Info("All workers have finished")
 	}
@@ -195,19 +195,19 @@ func MustInit(s *SVC, err error) *SVC {
 		if s == nil || s.logger == nil {
 			panic(err)
 		}
-		s.logger.Fatal("Service initialization failed", zap.Error(err), zap.Stack("stacktrace"))
-		return nil
+		s.logger.Error("Service initialization failed", slog.Any("error", err), slog.String("stacktrace", string(debug.Stack())))
+		os.Exit(1)
 	}
 	return s
 }
 
 // Logger returns the service's logger. Logger might be nil if New() fails.
-func (s *SVC) Logger() *zap.Logger {
+func (s *SVC) Logger() *slog.Logger {
 	return s.logger
 }
 
 func (s *SVC) terminateWorkers() {
-	s.logger.Info("Terminating workers down service", zap.Duration("termination_grace_period", s.TerminationGracePeriod))
+	s.logger.Info("Terminating workers down service", slog.Duration("termination_grace_period", s.TerminationGracePeriod))
 
 	// terminate only initialized workers
 	wg := sync.WaitGroup{}
@@ -220,10 +220,10 @@ func (s *SVC) terminateWorkers() {
 				w := s.workers[name]
 				if err := w.Terminate(); err != nil {
 					s.logger.Error("Terminated with error",
-						zap.String("worker", name),
-						zap.Error(err))
+						slog.String("worker", name),
+						slog.Any("error", err))
 				}
-				s.logger.Info("Worker terminated", zap.String("worker", name))
+				s.logger.Info("Worker terminated", slog.String("worker", name))
 			}(name)
 		}
 	}()
@@ -251,8 +251,8 @@ func (s *SVC) recoverWait(name string, wg *sync.WaitGroup, errors chan<- error) 
 	wg.Done()
 	if r := recover(); r != nil {
 		if err, ok := r.(error); ok {
-			s.logger.Error("recover panic", zap.String("worker", name),
-				zap.Error(err), zap.Stack("stack"))
+			s.logger.Error("recover panic", slog.String("worker", name),
+				slog.Any("error", err), slog.String("stack", string(debug.Stack())))
 			errors <- err
 		} else {
 			errors <- fmt.Errorf("%v", r)

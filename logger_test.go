@@ -1,11 +1,10 @@
 package svc
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 func TestNewLogger(t *testing.T) {
@@ -15,39 +14,19 @@ func TestNewLogger(t *testing.T) {
 	}{
 		{
 			name:          "console logger",
-			serviceOption: WithConsoleLogger(zap.InfoLevel),
-		},
-		{
-			name: "console logger with options",
-			serviceOption: WithConsoleLogger(zap.DebugLevel, zap.WrapCore(func(core zapcore.Core) zapcore.Core {
-				return core
-			})),
+			serviceOption: WithConsoleLogger(slog.LevelInfo),
 		},
 		{
 			name:          "development logger",
 			serviceOption: WithDevelopmentLogger(),
 		},
 		{
-			name:          "development logger with options",
-			serviceOption: WithDevelopmentLogger(zap.Development()),
-		},
-		{
 			name:          "production logger",
 			serviceOption: WithProductionLogger(),
 		},
 		{
-			name:          "production logger with options",
-			serviceOption: WithProductionLogger(zap.WithCaller(true)),
-		},
-		{
 			name:          "stackdriver logger",
-			serviceOption: WithStackdriverLogger(zap.WarnLevel),
-		},
-		{
-			name: "stackdriver logger with options",
-			serviceOption: WithStackdriverLogger(zap.WarnLevel, zap.WrapCore(func(core zapcore.Core) zapcore.Core {
-				return core
-			}), zap.AddCaller()),
+			serviceOption: WithStackdriverLogger(slog.LevelWarn),
 		},
 	}
 

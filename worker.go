@@ -1,13 +1,14 @@
 package svc
 
 import (
+	"log/slog"
+
 	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
 )
 
 // Worker defines a SVC worker.
 type Worker interface {
-	Init(*zap.Logger) error
+	Init(*slog.Logger) error
 	Run() error
 	Terminate() error
 }

@@ -1,35 +1,26 @@
 package svc
 
 import (
+	"context"
+	"io"
+	"log/slog"
 	"os"
-	"time"
 
-	"github.com/blendle/zapdriver"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
-func (s *SVC) newLogger(level zapcore.Level, encoder zapcore.Encoder) (*zap.Logger, zap.AtomicLevel) {
-	atom := zap.NewAtomicLevel()
-	atom.SetLevel(level)
-
-	s.zapOpts = append(s.zapOpts, zap.ErrorOutput(zapcore.Lock(os.Stderr)), zap.AddCaller())
-
-	logger := zap.New(zapcore.NewSamplerWithOptions(zapcore.NewCore(
-		encoder,
-		zapcore.Lock(os.Stdout),
-		atom,
-	), time.Second, 10, 10),
-		s.zapOpts...,
-	)
-
-	return logger, atom
+func (s *SVC) initLogger(handler slog.Handler, levelVar *slog.LevelVar) {
+	if s.metricsCounter != nil {
+		handler = &metricsHandler{inner: handler, counter: s.metricsCounter}
+	}
+	s.logger = slog.New(handler)
+	s.levelVar = levelVar
+	s.stdLogger = slog.NewLogLogger(handler, slog.LevelError)
 }
 
-// WithZapMetrics will add a hook to the zap logger and emit metrics to prometheus
+// WithSlogMetrics adds a hook to the logger and emits metrics to prometheus
 // based on log level and log name.
-func WithZapMetrics() Option {
+func WithSlogMetrics() Option {
 	return func(s *SVC) error {
 		requestCount := prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -42,98 +33,142 @@ func WithZapMetrics() Option {
 			return err
 		}
 
-		s.zapOpts = append(s.zapOpts,
-			zap.Hooks(func(e zapcore.Entry) error {
-				counter, err := requestCount.GetMetricWithLabelValues(e.Level.String(), e.LoggerName)
-				if err != nil {
-					return err
-				}
-				counter.Inc()
-				return nil
-			}))
+		s.metricsCounter = requestCount
 		return nil
 	}
 }
 
 // WithLogger is an option that allows you to provide your own customized logger.
-func WithLogger(logger *zap.Logger, atom zap.AtomicLevel) Option {
+func WithLogger(logger *slog.Logger, levelVar *slog.LevelVar) Option {
 	return func(s *SVC) error {
-		return assignLogger(s, logger, atom)
+		s.initLogger(logger.Handler(), levelVar)
+		return nil
 	}
 }
 
-// WithDevelopmentLogger is an option that uses a zap Logger with
+// WithDevelopmentLogger is an option that uses a JSON handler with
 // configurations set meant to be used for development.
-func WithDevelopmentLogger(opts ...zap.Option) Option {
+func WithDevelopmentLogger() Option {
 	return func(s *SVC) error {
-		s.zapOpts = append(s.zapOpts, opts...)
-		logger, atom := s.newLogger(
-			zapcore.DebugLevel,
-			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
-		)
-		logger = logger.With(zap.String("app", s.Name), zap.String("version", s.Version))
-		return assignLogger(s, logger, atom)
+		levelVar := &slog.LevelVar{}
+		levelVar.Set(slog.LevelDebug)
+
+		handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: levelVar,
+		})
+		s.initLogger(handler, levelVar)
+		s.logger = s.logger.With("app", s.Name, "version", s.Version)
+		return nil
 	}
 }
 
-// WithProductionLogger is an option that uses a zap Logger with configurations
-// set meant to be used for production.
-func WithProductionLogger(opts ...zap.Option) Option {
+// WithProductionLogger is an option that uses a JSON handler with
+// configurations set meant to be used for production.
+func WithProductionLogger() Option {
 	return func(s *SVC) error {
-		s.zapOpts = append(s.zapOpts, opts...)
-		logger, atom := s.newLogger(
-			zapcore.InfoLevel,
-			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
-		)
-		logger = logger.With(zap.String("app", s.Name), zap.String("version", s.Version))
-		return assignLogger(s, logger, atom)
+		levelVar := &slog.LevelVar{}
+		levelVar.Set(slog.LevelInfo)
+
+		handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: levelVar,
+		})
+		s.initLogger(handler, levelVar)
+		s.logger = s.logger.With("app", s.Name, "version", s.Version)
+		return nil
 	}
 }
 
-// WithConsoleLogger is an option that uses a zap Logger with configurations
+// WithConsoleLogger is an option that uses a text handler with configurations
 // set meant to be used for debugging in the console.
-func WithConsoleLogger(level zapcore.Level, opts ...zap.Option) Option {
+func WithConsoleLogger(level slog.Level) Option {
 	return func(s *SVC) error {
-		config := zap.NewProductionEncoderConfig()
-		config.EncodeTime = zapcore.RFC3339TimeEncoder
-		s.zapOpts = append(s.zapOpts, opts...)
+		levelVar := &slog.LevelVar{}
+		levelVar.Set(level)
 
-		logger, atom := s.newLogger(
-			level,
-			zapcore.NewConsoleEncoder(config),
-		)
-		return assignLogger(s, logger, atom)
+		handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			Level: levelVar,
+		})
+		s.initLogger(handler, levelVar)
+		return nil
 	}
 }
 
-// WithStackdriverLogger is an option that uses a zap Logger with configurations
-// set meant to be used for production and is compliant with the GCP/Stackdriver format.
-func WithStackdriverLogger(level zapcore.Level, opts ...zap.Option) Option {
+// gcpReplaceAttr maps slog keys to GCP Stackdriver-compatible keys.
+func gcpReplaceAttr(groups []string, a slog.Attr) slog.Attr {
+	if a.Key == slog.LevelKey {
+		a.Key = "severity"
+		level := a.Value.Any().(slog.Level)
+		switch {
+		case level < slog.LevelInfo:
+			a.Value = slog.StringValue("DEBUG")
+		case level < slog.LevelWarn:
+			a.Value = slog.StringValue("INFO")
+		case level < slog.LevelError:
+			a.Value = slog.StringValue("WARNING")
+		default:
+			a.Value = slog.StringValue("ERROR")
+		}
+		return a
+	}
+	if a.Key == slog.MessageKey {
+		a.Key = "message"
+	}
+	if a.Key == slog.TimeKey {
+		a.Key = "timestamp"
+	}
+	return a
+}
+
+// WithStackdriverLogger is an option that uses a JSON handler with
+// configurations set meant to be used for production and is compliant with
+// the GCP/Stackdriver format.
+func WithStackdriverLogger(level slog.Level) Option {
 	return func(s *SVC) error {
-		s.zapOpts = append(s.zapOpts, opts...)
-		logger, atom := s.newLogger(
-			level,
-			zapcore.NewJSONEncoder(zapdriver.NewProductionEncoderConfig()),
+		levelVar := &slog.LevelVar{}
+		levelVar.Set(level)
+
+		handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level:       levelVar,
+			ReplaceAttr: gcpReplaceAttr,
+		})
+		s.initLogger(handler, levelVar)
+		s.logger = s.logger.With(
+			slog.Group("serviceContext", slog.String("service", s.Name)),
+			slog.Group("logging.googleapis.com/labels", slog.String("version", s.Version)),
 		)
-		logger = logger.With(zapdriver.ServiceContext(s.Name), zapdriver.Label("version", s.Version))
-		return assignLogger(s, logger, atom)
+		return nil
 	}
 }
 
-func assignLogger(s *SVC, logger *zap.Logger, atom zap.AtomicLevel) error {
-	stdLogger, err := zap.NewStdLogAt(logger, zapcore.ErrorLevel)
-	if err != nil {
-		return err
+// WithNoopLogger is an option that discards all log output. Useful for tests.
+func WithNoopLogger() Option {
+	return func(s *SVC) error {
+		levelVar := &slog.LevelVar{}
+		handler := slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: levelVar})
+		s.initLogger(handler, levelVar)
+		return nil
 	}
-	undo, err := zap.RedirectStdLogAt(logger, zapcore.ErrorLevel)
-	if err != nil {
-		return err
-	}
+}
 
-	s.logger = logger
-	s.stdLogger = stdLogger
-	s.atom = atom
-	s.loggerRedirectUndo = undo
+// metricsHandler wraps a slog.Handler to count log entries by level.
+type metricsHandler struct {
+	inner   slog.Handler
+	counter *prometheus.CounterVec
+}
 
-	return nil
+func (h *metricsHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.inner.Enabled(ctx, level)
+}
+
+func (h *metricsHandler) Handle(ctx context.Context, r slog.Record) error {
+	h.counter.WithLabelValues(r.Level.String()).Inc()
+	return h.inner.Handle(ctx, r)
+}
+
+func (h *metricsHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &metricsHandler{h.inner.WithAttrs(attrs), h.counter}
+}
+
+func (h *metricsHandler) WithGroup(name string) slog.Handler {
+	return &metricsHandler{h.inner.WithGroup(name), h.counter}
 }

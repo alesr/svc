@@ -3,13 +3,13 @@ package svc
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/pprof"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.uber.org/zap"
 )
 
 // Option defines SVC's option type.
@@ -47,7 +47,27 @@ func WithRouter(router *http.ServeMux) Option {
 // logger to have any effect on that logger option.
 func WithLogLevelHandlers() Option {
 	return func(s *SVC) error {
-		s.Router.Handle("/loglevel", s.atom)
+		s.Router.HandleFunc("/loglevel", func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet:
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(map[string]string{"level": s.levelVar.Level().String()})
+			case http.MethodPut:
+				var body struct {
+					Level string `json:"level"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				var level slog.Level
+				if err := level.UnmarshalText([]byte(body.Level)); err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				s.levelVar.Set(level)
+			}
+		})
 
 		return nil
 	}
@@ -77,7 +97,7 @@ func WithMetrics() Option {
 		m.Set(1)
 
 		if err := s.internalRegister.Register(m); err != nil {
-			s.logger.Error("svc_up could not register", zap.Error(err))
+			s.logger.Error("svc_up could not register", slog.Any("error", err))
 		}
 
 		return nil
@@ -139,8 +159,12 @@ func WithHealthz() Option {
 				return
 			}
 
-			s.logger.Warn("liveliness probe failed", zap.Errors("errors", errs))
-			b, err := json.Marshal(map[string]interface{}{"errors": errs})
+			errStrs := make([]string, len(errs))
+			for i, e := range errs {
+				errStrs[i] = e.Error()
+			}
+			s.logger.Warn("liveliness probe failed", slog.Any("errors", errStrs))
+			b, err := json.Marshal(map[string]interface{}{"errors": errStrs})
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -161,8 +185,12 @@ func WithHealthz() Option {
 				}
 			}
 			if len(errs) > 0 {
-				s.logger.Warn("Ready check failed", zap.Errors("errors", errs))
-				b, err := json.Marshal(map[string]interface{}{"errors": errs})
+				errStrs := make([]string, len(errs))
+				for i, e := range errs {
+					errStrs[i] = e.Error()
+				}
+				s.logger.Warn("Ready check failed", slog.Any("errors", errStrs))
+				b, err := json.Marshal(map[string]interface{}{"errors": errStrs})
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return

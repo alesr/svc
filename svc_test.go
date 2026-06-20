@@ -3,13 +3,13 @@ package svc
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestWorkerInitOrder(t *testing.T) {
@@ -17,13 +17,13 @@ func TestWorkerInitOrder(t *testing.T) {
 
 	// Arrange
 
-	s, err := New("dummy-name", "dummy-version")
+	s, err := New("dummy-name", "dummy-version", WithNoopLogger())
 	require.NoError(t, err)
 
 	var actualSeq []string
 
 	w1 := &WorkerMock{
-		InitFunc: func(*zap.Logger) error {
+		InitFunc: func(*slog.Logger) error {
 			actualSeq = append(actualSeq, "w1Init")
 			return nil
 		},
@@ -31,7 +31,7 @@ func TestWorkerInitOrder(t *testing.T) {
 		TerminateFunc: func() error { return nil },
 	}
 	w2 := &WorkerMock{
-		InitFunc: func(*zap.Logger) error {
+		InitFunc: func(*slog.Logger) error {
 			actualSeq = append(actualSeq, "w2Init")
 			return nil
 		},
@@ -39,7 +39,7 @@ func TestWorkerInitOrder(t *testing.T) {
 		TerminateFunc: func() error { return nil },
 	}
 	w3 := &WorkerMock{
-		InitFunc: func(*zap.Logger) error {
+		InitFunc: func(*slog.Logger) error {
 			actualSeq = append(actualSeq, "w3Init")
 			return nil
 		},
@@ -72,12 +72,12 @@ func TestShutdown(t *testing.T) {
 
 	termWorkerCh := make(chan struct{})
 	dummyWorker := &WorkerMock{
-		InitFunc:      func(*zap.Logger) error { return nil },
+		InitFunc:      func(*slog.Logger) error { return nil },
 		RunFunc:       func() error { <-termWorkerCh; return nil },
 		TerminateFunc: func() error { termWorkerCh <- struct{}{}; return nil },
 	}
 
-	s, err := New("dummy-service", "v0.0.0")
+	s, err := New("dummy-service", "v0.0.0", WithNoopLogger())
 	require.NoError(t, err)
 
 	s.AddWorker("dummy-worker", dummyWorker)
@@ -98,14 +98,14 @@ func TestContextCanceled(t *testing.T) {
 	t.Parallel()
 
 	dummyWorker := &WorkerMock{
-		InitFunc: func(*zap.Logger) error { return nil },
+		InitFunc: func(*slog.Logger) error { return nil },
 		RunFunc: func() error {
 			return fmt.Errorf("stopped: %w", context.Canceled)
 		},
 		TerminateFunc: func() error { return nil },
 	}
 
-	s, err := New("dummy-service", "v0.0.1")
+	s, err := New("dummy-service", "v0.0.1", WithNoopLogger())
 	require.NoError(t, err)
 	s.AddWorker("dummy-worker", dummyWorker)
 
@@ -116,14 +116,14 @@ func TestContextCanceled(t *testing.T) {
 var _ Worker = (*WorkerMock)(nil)
 
 type WorkerMock struct {
-	InitFunc      func(*zap.Logger) error
+	InitFunc      func(*slog.Logger) error
 	RunFunc       func() error
 	TerminateFunc func() error
 	AliveFunc     func() error
 	HealthyFunc   func() error
 }
 
-func (w *WorkerMock) Init(l *zap.Logger) error {
+func (w *WorkerMock) Init(l *slog.Logger) error {
 	if w.InitFunc == nil {
 		panic("WorkerMock: Init was called but InitFunc was not mocked!")
 	}
@@ -169,7 +169,7 @@ func TestSVC_AddWorkerWithInitRetry(t *testing.T) {
 		{
 			name: "succeeds after 3 attempts, with max  10 attempts",
 			w: &WorkerMock{
-				InitFunc: func(*zap.Logger) error {
+				InitFunc: func(*slog.Logger) error {
 					if attempts < 3 {
 						attempts++
 						return fmt.Errorf("failed")
@@ -185,7 +185,7 @@ func TestSVC_AddWorkerWithInitRetry(t *testing.T) {
 		{
 			name: "fails after 3 attempts, with max 3 attempts",
 			w: &WorkerMock{
-				InitFunc: func(*zap.Logger) error {
+				InitFunc: func(*slog.Logger) error {
 					attempts++
 					return fmt.Errorf("failed")
 				},
@@ -201,7 +201,7 @@ func TestSVC_AddWorkerWithInitRetry(t *testing.T) {
 		attempts = 0
 
 		t.Run(tt.name, func(t *testing.T) {
-			s, err := New("dummy-name", "dummy-version")
+			s, err := New("dummy-name", "dummy-version", WithNoopLogger())
 			require.NoError(t, err)
 
 			s.AddWorkerWithInitRetry("test", tt.w, tt.retryOpts)
