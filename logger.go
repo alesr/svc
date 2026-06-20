@@ -2,6 +2,7 @@ package svc
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"os"
 
@@ -139,6 +140,15 @@ func WithStackdriverLogger(level slog.Level) Option {
 	}
 }
 
+// WithNoopLogger is an option that discards all log output. Useful for tests.
+func WithNoopLogger() Option {
+	return func(s *SVC) error {
+		levelVar := &slog.LevelVar{}
+		handler := slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: levelVar})
+		s.initLogger(handler, levelVar)
+		return nil
+	}
+}
 
 // metricsHandler wraps a slog.Handler to count log entries by level.
 type metricsHandler struct {

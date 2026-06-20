@@ -53,7 +53,7 @@ func TestAlive(t *testing.T) {
 				},
 			}
 
-			s, err := New("dummy-service", "v0.0.0", WithHealthz(), WithHTTPServer("9090"))
+			s, err := New("dummy-service", "v0.0.0", WithHealthz(), WithHTTPServer("9090"), WithNoopLogger())
 			require.NoError(t, err)
 
 			s.AddWorker("dummy-worker", dummyWorker)
@@ -110,7 +110,7 @@ func TestHealthy(t *testing.T) {
 				},
 			}
 
-			s, err := New("dummy-service", "v0.0.0", WithHealthz(), WithHTTPServer("9090"))
+			s, err := New("dummy-service", "v0.0.0", WithHealthz(), WithHTTPServer("9090"), WithNoopLogger())
 			require.NoError(t, err)
 
 			s.AddWorker("dummy-worker", dummyWorker)

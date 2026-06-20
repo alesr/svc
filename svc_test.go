@@ -17,7 +17,7 @@ func TestWorkerInitOrder(t *testing.T) {
 
 	// Arrange
 
-	s, err := New("dummy-name", "dummy-version")
+	s, err := New("dummy-name", "dummy-version", WithNoopLogger())
 	require.NoError(t, err)
 
 	var actualSeq []string
@@ -77,7 +77,7 @@ func TestShutdown(t *testing.T) {
 		TerminateFunc: func() error { termWorkerCh <- struct{}{}; return nil },
 	}
 
-	s, err := New("dummy-service", "v0.0.0")
+	s, err := New("dummy-service", "v0.0.0", WithNoopLogger())
 	require.NoError(t, err)
 
 	s.AddWorker("dummy-worker", dummyWorker)
@@ -105,7 +105,7 @@ func TestContextCanceled(t *testing.T) {
 		TerminateFunc: func() error { return nil },
 	}
 
-	s, err := New("dummy-service", "v0.0.1")
+	s, err := New("dummy-service", "v0.0.1", WithNoopLogger())
 	require.NoError(t, err)
 	s.AddWorker("dummy-worker", dummyWorker)
 
@@ -201,7 +201,7 @@ func TestSVC_AddWorkerWithInitRetry(t *testing.T) {
 		attempts = 0
 
 		t.Run(tt.name, func(t *testing.T) {
-			s, err := New("dummy-name", "dummy-version")
+			s, err := New("dummy-name", "dummy-version", WithNoopLogger())
 			require.NoError(t, err)
 
 			s.AddWorkerWithInitRetry("test", tt.w, tt.retryOpts)
