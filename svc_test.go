@@ -159,6 +159,8 @@ func (w *WorkerMock) Healthy() error {
 }
 
 func TestSVC_AddWorkerWithInitRetry(t *testing.T) {
+	t.Parallel()
+
 	var attempts uint
 	tests := []struct {
 		name             string

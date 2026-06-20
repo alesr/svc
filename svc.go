@@ -211,9 +211,7 @@ func (s *SVC) terminateWorkers() {
 
 	// terminate only initialized workers
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		time.Sleep(s.TerminationWaitPeriod)
 		for _, name := range s.workersInitialized {
 			defer func(name string) {
@@ -226,7 +224,7 @@ func (s *SVC) terminateWorkers() {
 				s.logger.Info("Worker terminated", slog.String("worker", name))
 			}(name)
 		}
-	}()
+	})
 	waitGroupTimeout(&wg, s.TerminationGracePeriod)
 	s.logger.Info("All workers terminated")
 }

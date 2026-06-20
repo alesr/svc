@@ -37,8 +37,7 @@ func TestAlive(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tc := tt
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			dummyWorker := &WorkerMock{
 				RunFunc: func() error {
@@ -49,7 +48,7 @@ func TestAlive(t *testing.T) {
 				},
 				InitFunc: func(*slog.Logger) error { return nil },
 				HealthyFunc: func() error {
-					return tc.givenError
+					return tt.givenError
 				},
 			}
 
@@ -63,7 +62,7 @@ func TestAlive(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 			rec := httptest.NewRecorder()
 			s.Router.ServeHTTP(rec, req)
-			assert.Equal(t, tc.expectedCode, rec.Code)
+			assert.Equal(t, tt.expectedCode, rec.Code)
 		})
 	}
 }
@@ -94,8 +93,7 @@ func TestHealthy(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tc := tt
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			dummyWorker := &WorkerMock{
 				RunFunc: func() error {
@@ -106,7 +104,7 @@ func TestHealthy(t *testing.T) {
 				},
 				InitFunc: func(*slog.Logger) error { return nil },
 				AliveFunc: func() error {
-					return tc.givenError
+					return tt.givenError
 				},
 			}
 
@@ -120,7 +118,7 @@ func TestHealthy(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/live", nil)
 			rec := httptest.NewRecorder()
 			s.Router.ServeHTTP(rec, req)
-			assert.Equal(t, tc.expectedCode, rec.Code)
+			assert.Equal(t, tt.expectedCode, rec.Code)
 		})
 	}
 }

@@ -179,23 +179,8 @@ target list. In the case of gRPC in Kubernetes this should be 35 seconds to cove
 
 We encourage and support an active, healthy community of contributors &mdash;
 including you! Details are in the [contribution guide](CONTRIBUTING.md) and
-the [code of conduct](CODE_OF_CONDUCT.md). The `svc` maintainers keep an eye on
-issues and pull requests, but you can also report any negative conduct to
-opensource@voiapp.io.
-
-### Contributors
-
-- [@djui](https://github.com/djui)
-- [@drpytho](https://github.com/drpytho)
-- [@cvik](https://github.com/cvik)
-- [@K-Phoen](https://github.com/K-Phoen)
-- [@ronanbarrett](https://github.com/ronanbarrett)
-- [@zatte](https://github.com/zatte)
-
-#### I am missing?
-If you feel you should be on this list, create a PR to add yourself.
+the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
 Apache 2.0, see [LICENSE.md](LICENSE.md).
-
