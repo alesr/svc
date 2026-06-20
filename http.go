@@ -3,18 +3,17 @@ package svc
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 var _ Worker = (*httpServer)(nil)
 
 // httpServer defines the internal HTTP Server worker.
 type httpServer struct {
-	logger     *zap.Logger
+	logger     *slog.Logger
 	addr       string
 	httpServer *http.Server
 }
@@ -33,7 +32,7 @@ func newHTTPServer(port string, handler http.Handler, logger *log.Logger) *httpS
 }
 
 // Init implements the Worker interface.
-func (s *httpServer) Init(logger *zap.Logger) error {
+func (s *httpServer) Init(logger *slog.Logger) error {
 	s.logger = logger
 
 	return nil
@@ -46,9 +45,9 @@ func (s *httpServer) Healthy() error {
 
 // Run implements the Worker interface.
 func (s *httpServer) Run() error {
-	s.logger.Info("Listening and serving HTTP", zap.String("address", s.addr))
+	s.logger.Info("Listening and serving HTTP", slog.String("address", s.addr))
 	if err := s.httpServer.ListenAndServe(); err != http.ErrServerClosed {
-		s.logger.Error("Failed to serve HTTP", zap.Error(err))
+		s.logger.Error("Failed to serve HTTP", slog.Any("error", err))
 	}
 	return nil
 }

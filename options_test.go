@@ -2,13 +2,13 @@ package svc
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 //nolint:dupl
@@ -47,7 +47,7 @@ func TestAlive(t *testing.T) {
 				TerminateFunc: func() error {
 					return nil
 				},
-				InitFunc: func(*zap.Logger) error { return nil },
+				InitFunc: func(*slog.Logger) error { return nil },
 				HealthyFunc: func() error {
 					return tc.givenError
 				},
@@ -104,7 +104,7 @@ func TestHealthy(t *testing.T) {
 				TerminateFunc: func() error {
 					return nil
 				},
-				InitFunc: func(*zap.Logger) error { return nil },
+				InitFunc: func(*slog.Logger) error { return nil },
 				AliveFunc: func() error {
 					return tc.givenError
 				},

@@ -20,7 +20,7 @@ shuts down immediately.
 The life-cycle is:
 
 1. **Initialization** phase (`svc.New`). Each service needs a name, a version.
-SVC tries to create a [Zap](https://github.com/uber-go/zap) logger that workers
+SVC tries to create a structured logger that workers
 can make use of. The ideas is to have a consistent structure-logging experience
 throughout the service.
 
@@ -109,7 +109,7 @@ the service's log level to `debug` to allow for better troubleshooting.
 
 This option must be passed after other options that manipulate the logger to have any effect on that logger option.
 
-See [Zap's http_handler.go](https://github.com/uber-go/zap/blob/master/http_handler.go).
+See [Go's log/slog package](https://pkg.go.dev/log/slog).
 
 
 ### Pprof (Performance profiler) (`WithPProfHandlers`)
@@ -127,14 +127,14 @@ package main
 
 import (
 	"github.com/alesr/svc"
-	"go.uber.org/zap"
+	"log/slog"
 )
 
 var _ svc.Worker = (*dummyWorker)(nil)
 
 type dummyWorker struct{}
 
-func (d *dummyWorker) Init(*zap.Logger) error { return nil }
+func (d *dummyWorker) Init(*slog.Logger) error { return nil }
 func (d *dummyWorker) Terminate() error       { return nil }
 func (d *dummyWorker) Run() error             { select {} }
 
